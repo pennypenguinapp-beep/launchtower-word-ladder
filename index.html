@@ -37,7 +37,7 @@
   canvas{
     width:100%; max-width:560px; border-radius:12px;
     background:var(--panel); border:1px solid var(--line);
-    touch-action:manipulation;
+    touch-action:none; display:block;
   }
   .row{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; width:100%;}
   button{
@@ -110,8 +110,28 @@ const ctx = cv.getContext("2d");
 let startWord, targetWord, path, pos, hintsUsed, startTime, running, won, daily = false;
 let particles = [];
 let best = null;
+let screen = "start"; // start | play | win
+let paused = false;
+let newBest = false;
 try{ best = localStorage.getItem("wordladder_best"); }catch(e){}
 document.getElementById("best").textContent = best ? fmt(best) : "—";
+
+/* ============ AUDIO (WebAudio, no files) ============ */
+let AC = null;
+function ac(){ if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(AC && AC.state==="suspended") AC.resume(); return AC; }
+function beep(freq, dur, type, vol, when){
+  const a = ac(); if(!a) return;
+  const t0 = a.currentTime + (when||0);
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type||"square"; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol||0.06, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+  o.connect(g); g.connect(a.destination);
+  o.start(t0); o.stop(t0+dur+0.02);
+}
+function sfxStep(){ beep(660,0.08,"square",0.05); }
+function sfxWin(){ beep(523,0.12,"square",0.06); beep(659,0.12,"square",0.06,0.12); beep(784,0.2,"square",0.07,0.24); }
+function sfxBad(){ beep(160,0.12,"sawtooth",0.04); }
 
 function fmt(ms){
   const s = Math.floor(ms/1000);
@@ -172,7 +192,8 @@ function setup(useDaily){
     a = WLIST[0]; b = WLIST[1]; p = findPath(a,b) || [a,b];
   }
   startWord=a; targetWord=b; path=p; pos=0; hintsUsed=0;
-  startTime = Date.now(); running=true; won=false; particles=[];
+  startTime = Date.now(); running=true; won=false; particles=[]; newBest=false;
+  screen = "play"; paused = false;
   updateBestLabel();
   render();
 }
@@ -183,7 +204,7 @@ function updateBestLabel(){
 
 /* ============ INPUT ============ */
 function tryLetter(ch){
-  if(!running || won) return;
+  if(screen!=="play" || paused || !running || won) return;
   ch = ch.toLowerCase();
   if(!/[a-z]/.test(ch)) return;
   const cur = path[pos];
@@ -194,18 +215,22 @@ function tryLetter(ch){
   // simpler: build candidate by replacing first occurrence
   const cand = cur.slice(0,idx)+ch+cur.slice(idx+1);
   if(cand===cur) return;
-  if(!WORDS.has(cand)){ flash("Not a word"); return; }
+  if(!WORDS.has(cand)){ flash("Not a word"); sfxBad(); return; }
   pos++;
   spawnBurst(true);
+  sfxStep();
   if(pos>=path.length-1){
     won=true; running=false;
     const t = Date.now()-startTime;
     if(!best || t < parseInt(best,10)){
       best = String(t);
+      newBest = true;
       try{ localStorage.setItem("wordladder_best", best); }catch(e){}
       updateBestLabel();
     }
     spawnWin();
+    sfxWin();
+    screen = "win";
   }
   render();
 }
@@ -215,7 +240,7 @@ function flash(m){ flashMsg=m; flashT=Date.now(); render(); }
 
 /* ============ HINT ============ */
 function hint(){
-  if(!running || won) return;
+  if(screen!=="play" || paused || !running || won) return;
   hintsUsed++;
   const cur = path[pos];
   const next = path[pos+1];
@@ -245,6 +270,22 @@ function spawnWin(){
 }
 
 /* ============ RENDER ============ */
+function drawBtn(x,y,w,h,label,primary){
+  ctx.fillStyle = primary ? "#4fd1c5" : "#1c2330";
+  ctx.strokeStyle = primary ? "#4fd1c5" : "#3a4557";
+  ctx.lineWidth = 2;
+  const r = 10;
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = primary ? "#08281f" : "#e6edf3";
+  ctx.font = "700 18px ui-monospace,monospace";
+  ctx.textAlign = "center";
+  ctx.fillText(label, x+w/2, y+h/2+6);
+}
 function render(){
   const W=cv.width, H=cv.height;
   ctx.clearRect(0,0,W,H);
@@ -252,6 +293,27 @@ function render(){
   const g = ctx.createLinearGradient(0,0,0,H);
   g.addColorStop(0,"#161b22"); g.addColorStop(1,"#0d1117");
   ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+  if(screen === "start"){
+    ctx.textAlign="center";
+    ctx.fillStyle="#4fd1c5";
+    ctx.font="700 34px ui-monospace,monospace";
+    ctx.fillText("WORD LADDER", W/2, 130);
+    ctx.fillStyle="#8b98a9";
+    ctx.font="14px ui-monospace,monospace";
+    ctx.fillText("Turn the START word into the TARGET word, one letter at a time.", W/2, 175);
+    ctx.fillText("Every step must be a real 4-letter word.", W/2, 197);
+    ctx.font="12px ui-monospace,monospace";
+    ctx.fillText("Type a letter (or tap the canvas) to change it · H for a hint", W/2, 235);
+    drawBtn(W/2-90, 270, 180, 48, "▶  PLAY", true);
+    if(best){
+      ctx.fillStyle="#8b98a9";
+      ctx.font="12px ui-monospace,monospace";
+      ctx.fillText("BEST TIME  "+fmt(best), W/2, 355);
+    }
+    drawParticles();
+    return;
+  }
 
   // title
   ctx.textAlign="center";
@@ -320,22 +382,43 @@ function render(){
   }
 
   // win overlay
-  if(won){
-    ctx.fillStyle="rgba(13,17,23,.72)";
+  if(screen === "win"){
+    ctx.fillStyle="rgba(13,17,23,.78)";
     ctx.fillRect(0,0,W,H);
     ctx.textAlign="center";
-    ctx.font="700 30px ui-monospace,monospace";
+    ctx.font="700 32px ui-monospace,monospace";
     ctx.fillStyle="#68d391";
-    ctx.fillText("SOLVED!", W/2, H/2-30);
-    ctx.font="14px ui-monospace,monospace";
+    ctx.fillText("SOLVED!", W/2, H/2-58);
+    ctx.font="16px ui-monospace,monospace";
     ctx.fillStyle="#e6edf3";
-    ctx.fillText("Time: "+fmt(Date.now()-startTime)+"   Hints: "+hintsUsed, W/2, H/2+2);
+    ctx.fillText("TIME  "+fmt(Date.now()-startTime)+"     HINTS  "+hintsUsed, W/2, H/2-22);
+    if(newBest){
+      ctx.fillStyle="#f6ad55";
+      ctx.font="700 14px ui-monospace,monospace";
+      ctx.fillText("★ NEW BEST ★", W/2, H/2+4);
+    }
     ctx.fillStyle="#8b98a9";
     ctx.font="12px ui-monospace,monospace";
-    ctx.fillText("Press NEW PUZZLE to play again", W/2, H/2+30);
+    ctx.fillText("BEST  "+(best?fmt(best):"—"), W/2, H/2+28);
+    drawBtn(W/2-90, H/2+48, 180, 44, "▶  PLAY AGAIN", true);
   }
 
-  // particles
+  // paused overlay
+  if(paused && screen === "play"){
+    ctx.fillStyle="rgba(13,17,23,.7)";
+    ctx.fillRect(0,0,W,H);
+    ctx.textAlign="center";
+    ctx.font="700 26px ui-monospace,monospace";
+    ctx.fillStyle="#f6ad55";
+    ctx.fillText("PAUSED", W/2, H/2-10);
+    ctx.font="12px ui-monospace,monospace";
+    ctx.fillStyle="#8b98a9";
+    ctx.fillText("Press P or tap to resume", W/2, H/2+18);
+  }
+
+  drawParticles();
+}
+function drawParticles(){
   for(let i=particles.length-1;i>=0;i--){
     const p=particles[i];
     p.x+=p.vx; p.y+=p.vy; p.vy+=0.08; p.life-=0.02;
@@ -349,24 +432,95 @@ function render(){
 
 /* ============ CLOCK ============ */
 setInterval(()=>{
-  if(running && !won){
+  if(screen==="play" && !paused && running && !won){
     document.getElementById("time").textContent = fmt(Date.now()-startTime);
   }
   render(); // keep particles/flash animating
 }, 100);
 
-/* ============ KEYBOARD ============ */
-window.addEventListener("keydown", e=>{
-  if(e.key.length===1) tryLetter(e.key);
-  else if(e.key==="Enter") setup(false);
-  else if(e.key==="h"||e.key==="H") hint();
+/* ============ PAUSE ON TAB HIDDEN ============ */
+document.addEventListener("visibilitychange", ()=>{
+  if(document.hidden && screen==="play" && !won){ paused = true; }
+  render();
 });
 
+/* ============ KEYBOARD ============ */
+window.addEventListener("keydown", e=>{
+  if(e.key==="p"||e.key==="P"||e.key==="Escape"){
+    if(screen==="play"){ paused=!paused; render(); }
+    return;
+  }
+  if(e.key==="Enter"||e.key===" "){
+    if(screen==="start"){ ac(); setup(false); }
+    else if(screen==="win"){ setup(false); }
+    return;
+  }
+  if(e.key==="h"||e.key==="H"){ hint(); return; }
+  if(e.key.length===1) tryLetter(e.key);
+});
+
+/* ============ TOUCH / POINTER ============ */
+function canvasPoint(ev){
+  const r = cv.getBoundingClientRect();
+  const cx = (ev.clientX - r.left) * (cv.width / r.width);
+  const cy = (ev.clientY - r.top) * (cv.height / r.height);
+  return {x:cx, y:cy};
+}
+function hitBtn(p, x,y,w,h){ return p.x>=x && p.x<=x+w && p.y>=y && p.y<=y+h; }
+cv.addEventListener("pointerdown", ev=>{
+  ev.preventDefault();
+  const p = canvasPoint(ev);
+  const W=cv.width, H=cv.height;
+  if(screen==="start"){
+    if(hitBtn(p, W/2-90, 270, 180, 48)){ ac(); setup(false); }
+    return;
+  }
+  if(screen==="win"){
+    if(hitBtn(p, W/2-90, H/2+48, 180, 44)){ setup(false); }
+    return;
+  }
+  if(paused){ paused=false; render(); return; }
+  // tap anywhere on the board = same as typing the letter under the cursor?
+  // Instead: tap toggles a small on-canvas letter pad is overkill; tap = hint-free nudge:
+  // we treat a tap on the board as "no-op" but a SWIPE is not needed for this game.
+  // To keep touch playable: tapping cycles through candidate next words.
+  cycleNext();
+});
+let cycleIdx = 0;
+function cycleNext(){
+  if(screen!=="play" || paused || !running || won) return;
+  const cur = path[pos];
+  const next = path[pos+1];
+  const diffIdx = next.split("").findIndex((c,i)=>c!==cur[i]);
+  // build all valid one-letter changes from cur (real words), sorted
+  const cands = [];
+  for(let i=0;i<4;i++){
+    for(let c=0;c<26;c++){
+      const ch = String.fromCharCode(97+c);
+      if(ch===cur[i]) continue;
+      const cand = cur.slice(0,i)+ch+cur.slice(i+1);
+      if(WORDS.has(cand)) cands.push(cand);
+    }
+  }
+  if(!cands.length) return;
+  cands.sort();
+  cycleIdx = (cycleIdx+1) % cands.length;
+  const cand = cands[cycleIdx];
+  if(cand===next){
+    cycleIdx = 0;
+    tryLetter(next[diffIdx]);
+  } else {
+    flash(cand.toUpperCase());
+    sfxBad();
+  }
+}
+
 /* ============ BUTTONS ============ */
-document.getElementById("newBtn").onclick = ()=>setup(false);
-document.getElementById("dailyBtn").onclick = ()=>setup(true);
+document.getElementById("newBtn").onclick = ()=>{ ac(); setup(false); };
+document.getElementById("dailyBtn").onclick = ()=>{ ac(); setup(true); };
 document.getElementById("hintBtn").onclick = hint;
 document.getElementById("resetBtn").onclick = ()=>{
+  if(screen!=="play") return;
   pos=0; hintsUsed=0; startTime=Date.now(); running=true; won=false;
   document.getElementById("hintBox").innerHTML =
     "Reset. Change <b>one letter</b> at a time — every step must be a real 4-letter word.";
@@ -374,7 +528,8 @@ document.getElementById("resetBtn").onclick = ()=>{
 };
 
 /* ============ INIT ============ */
-setup(false);
+screen = "start";
+render();
 </script>
 </body>
 </html>
