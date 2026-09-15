@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Word Ladder — LaunchTower</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --line:#2b3444;
+    --text:#e6edf3; --dim:#8b98a9; --accent:#4fd1c5; --accent2:#f6ad55;
+    --good:#68d391; --bad:#fc8181; --key:#21262d; --keyline:#3a4557;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  }
+  header{
+    width:100%; max-width:560px; padding:16px 14px 6px;
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .brand{font-size:15px; letter-spacing:1px; color:var(--accent); font-weight:700;}
+  .brand small{color:var(--dim); font-weight:400; letter-spacing:0;}
+  .stats{display:flex; gap:14px; font-size:12px; color:var(--dim); white-space:nowrap;}
+  .stats b{color:var(--text); font-size:14px;}
+  #wrap{
+    width:100%; max-width:560px; padding:8px 14px 20px;
+    display:flex; flex-direction:column; align-items:center; gap:14px;
+  }
+  canvas{
+    width:100%; max-width:560px; border-radius:12px;
+    background:var(--panel); border:1px solid var(--line);
+    touch-action:manipulation;
+  }
+  .row{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; width:100%;}
+  button{
+    font-family:inherit; font-size:14px; color:var(--text);
+    background:var(--panel2); border:1px solid var(--line);
+    padding:10px 16px; border-radius:8px; cursor:pointer;
+    transition:background .15s,border-color .15s,transform .05s;
+  }
+  button:hover{background:#232c3b; border-color:var(--keyline);}
+  button:active{transform:scale(.97);}
+  button.primary{background:var(--accent); color:#08281f; border-color:var(--accent); font-weight:700;}
+  button.primary:hover{background:#63e0d4;}
+  button.danger{color:var(--bad);}
+  .hintbox{
+    width:100%; max-width:560px; background:var(--panel);
+    border:1px solid var(--line); border-radius:10px; padding:12px 14px;
+    font-size:13px; color:var(--dim); line-height:1.5; min-height:52px;
+  }
+  .hintbox b{color:var(--accent2);}
+  .hintbox .word{color:var(--accent); font-weight:700;}
+  footer{
+    width:100%; max-width:560px; text-align:center; padding:6px 14px 22px;
+    font-size:12px; color:var(--dim);
+  }
+  footer a{color:var(--accent); text-decoration:none;}
+  footer a:hover{text-decoration:underline;}
+  @media (max-width:420px){
+    .stats{font-size:11px; gap:10px;}
+    button{padding:9px 12px; font-size:13px;}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">LAUNCHTOWER <small>· Word Ladder</small></div>
+  <div class="stats">
+    <div>TIME <b id="time">0:00</b></div>
+    <div>BEST <b id="best">—</b></div>
+  </div>
+</header>
+
+<div id="wrap">
+  <canvas id="game" width="560" height="430"></canvas>
+  <div class="row">
+    <button class="primary" id="newBtn">New Puzzle</button>
+    <button id="dailyBtn">Daily Ladder</button>
+    <button id="hintBtn">Hint</button>
+    <button class="danger" id="resetBtn">Reset</button>
+  </div>
+  <div class="hintbox" id="hintBox">
+    Change <b>one letter</b> at a time. Every step must be a real 4-letter word.
+    Reach the target to win. <span class="word">DAILY</span> mode uses the same puzzle for everyone today.
+  </div>
+</div>
+
+<footer>
+  Made by <a href="https://pennypenguinapp-beep.github.io/" target="_blank" rel="noopener">LaunchTower</a> · free browser games &amp; tools for pixel artists
+</footer>
+
+<script>
+"use strict";
+/* ============ WORD LIST (4-letter words) ============ */
+const RAW = "able acid aged also area army atom aunt away baby back ball band bank base bath bead bear beat beef bell belt bend bias bike bill bird bite blow blue boat bone book boot born both bowl buoy burn bush busy cage cake calf call calm came camp cane cape card care cart case cash cast cave cell cent chat chip city club coal coat code coil coin cold colt comb come cook cool cord core corn cost crew crop cube cure curl dash data date dawn day's deal dean dear debt deck deep deer den's desk dial dice diet dim's dirt dish dock does dome done doom door dose dove down drag draw drew drip drop drum dual duck dull dust duty each ear's ease east easy echo edge edit else even ever evil exam face fact fade fail fair fall fame farm fast fate fear feed feel feet fell felt fern file fill film find fine fire firm fish five flag flat flea flew flip flow foam foil fold folk food fool foot ford fore fork form fort four free frog from fuel full fund fuse gain gait game gang gap's gate gave gear gene germ gift girl give glad goal goat gold golf gone good gray grew grid grim grin grip grow gulf hair half hall halt hand hang hard hare harm harp hart hate have hawk haze head heal heap hear heat heap held hell helm help herb hide high hike hill hint hire hoard hold hole holy home hood hook hope horn hose host hour huge hull hunt hurt hush icing idea idle inch into iron isle jack jade jail jazz jean jeep jerk jest join joke jolt jump jury just keen keep kelp kick kind king kiss kite knee knew knot know lace lack lady laid lake lamb lamp land lane last late lava lazy lead leaf leak lean leap left lend lens less lift like limb lime line link lion list live load loaf loan lock log's long look loop lord lose loss loud love luck lump lung lure mail main make male mall malt mane many map's march mark mask mast mate math meal mean meat meet melt mend menu mere mesh mess mild mile milk mill mind mine mint miss mist mole mold monk moon more moss most moth move much mule must mute nail name nap's navy near neat neck need nest news next nice nick node nose note noun now's nude oath obey odds odor off's often oil's okay once only onto open oral oven over pace pack pact page paid pain pair pale palm pane park part pass past path pave peak pear peat peel peer pest pick pie's pile pill pine pink pint pipe plan play plea plot plow plug plum plus poem poet pole poll pond pool poor pore port pose pour pray prey prim prod proof prop pull pulp pump pure push quiz race rack raft rage raid rail rain rake ramp rang rank rare rate read real ream reap rear reed reef reel rein rely rent rest rice rich ride ring riot ripe rise risk road roam roar robe rock rode role roll roof room root rope rose rude ruin rule rung rush safe sage said sail sale salt same sand sank sane sang save scan scar seal seam seat seed seek seem seen self sell send sent shed shin ship shoe shop shot show shut sick sign silk sing sink site size skin skip slab slam slap sled slid slim slip slot slow slug snap snow soak soap soar sock sofa soft soil sold sole some song soon sore sort soul soup sour sown span spar spat spec spin spit spot spray spun spur stab stack staff stag stain stair stake stale stamp stand star start stay steak steal steam steel steep steer stem step stick still sting stock stone stood stop store storm story stout stove strap straw stray streak stream street strike string strip stuck study stuff style sugar suite summer sun's sunny super sure surf swan sweat sweep sweet swim swing sword table taken tape task taste tax's teach team tear tell tend tent term test text than that the's their them then there these they thing think this those three throw thumb thus time tiny tip's tired title toad today toe's told tone tool tooth top's torch total touch tough tower town toy's trace track trade trail train trait trash treat tree trend trial tribe trick trim trip true trust tube tune turn twin type ugly unit upon urge used user vain valid value vapor vary vast veal vein verb very vest view vine visa void vote wade wage wait wake walk wall wand want ward warm warn warp wart wash waste watch water wave way's weak wear week weigh well went wept were west what when where which while whim whip whom wide wife wild will wind wine wing wink wipe wire wise wish with wolf wood wool word work worm worn wrap wreck wrist write wrong yard yarn year yell your youth zone zoom";
+const WORDS = new Set(RAW.split(/\s+/).map(w=>w.toLowerCase().replace(/[^a-z]/g,"")).filter(w=>w.length===4));
+const WLIST = [...WORDS];
+
+/* ============ STATE ============ */
+const cv = document.getElementById("game");
+const ctx = cv.getContext("2d");
+let startWord, targetWord, path, pos, hintsUsed, startTime, running, won, daily = false;
+let particles = [];
+let best = null;
+try{ best = localStorage.getItem("wordladder_best"); }catch(e){}
+document.getElementById("best").textContent = best ? fmt(best) : "—";
+
+function fmt(ms){
+  const s = Math.floor(ms/1000);
+  return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");
+}
+
+/* ============ BFS PATH ============ */
+function findPath(a,b){
+  if(a===b) return [a];
+  const prev = new Map(); prev.set(a,null);
+  const q=[a];
+  while(q.length){
+    const w = q.shift();
+    if(w===b) break;
+    for(let i=0;i<4;i++){
+      for(let c=0;c<26;c++){
+        const nw = w.slice(0,i)+String.fromCharCode(97+c)+w.slice(i+1);
+        if(WORDS.has(nw) && !prev.has(nw)){
+          prev.set(nw,w); q.push(nw);
+        }
+      }
+    }
+  }
+  if(!prev.has(b)) return null;
+  const out=[]; let cur=b;
+  while(cur){ out.push(cur); cur=prev.get(cur); }
+  return out.reverse();
+}
+
+/* ============ SETUP ============ */
+function seedRandom(seed){
+  let s = seed>>>0;
+  return function(){
+    s = (s*1664525 + 1013904223)>>>0;
+    return s/4294967296;
+  };
+}
+
+function dailySeed(){
+  const d = new Date();
+  return d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate();
+}
+
+function setup(useDaily){
+  daily = !!useDaily;
+  let rnd = Math.random;
+  if(daily) rnd = seedRandom(dailySeed());
+  // pick a pair with a nice path length (4-8 steps)
+  let tries=0, a, b, p;
+  do{
+    a = WLIST[Math.floor(rnd()*WLIST.length)];
+    b = WLIST[Math.floor(rnd()*WLIST.length)];
+    if(a===b) continue;
+    p = findPath(a,b);
+    tries++;
+  }while((!p || p.length<4 || p.length>9) && tries<400);
+  if(!p){ // fallback: any connected pair
+    a = WLIST[0]; b = WLIST[1]; p = findPath(a,b) || [a,b];
+  }
+  startWord=a; targetWord=b; path=p; pos=0; hintsUsed=0;
+  startTime = Date.now(); running=true; won=false; particles=[];
+  updateBestLabel();
+  render();
+}
+
+function updateBestLabel(){
+  document.getElementById("best").textContent = best ? fmt(best) : "—";
+}
+
+/* ============ INPUT ============ */
+function tryLetter(ch){
+  if(!running || won) return;
+  ch = ch.toLowerCase();
+  if(!/[a-z]/.test(ch)) return;
+  const cur = path[pos];
+  const idx = cur.indexOf(ch);
+  // must differ from current word in exactly one position and be a real word
+  let diff = 0;
+  for(let i=0;i<4;i++) if(cur[i]!==ch && i!==idx) diff++;
+  // simpler: build candidate by replacing first occurrence
+  const cand = cur.slice(0,idx)+ch+cur.slice(idx+1);
+  if(cand===cur) return;
+  if(!WORDS.has(cand)){ flash("Not a word"); return; }
+  pos++;
+  spawnBurst(true);
+  if(pos>=path.length-1){
+    won=true; running=false;
+    const t = Date.now()-startTime;
+    if(!best || t < parseInt(best,10)){
+      best = String(t);
+      try{ localStorage.setItem("wordladder_best", best); }catch(e){}
+      updateBestLabel();
+    }
+    spawnWin();
+  }
+  render();
+}
+
+let flashMsg="", flashT=0;
+function flash(m){ flashMsg=m; flashT=Date.now(); render(); }
+
+/* ============ HINT ============ */
+function hint(){
+  if(!running || won) return;
+  hintsUsed++;
+  const cur = path[pos];
+  const next = path[pos+1];
+  const diffIdx = next.split("").findIndex((c,i)=>c!==cur[i]);
+  const h = document.getElementById("hintBox");
+  h.innerHTML = "Hint: the next word differs at position <b>"+(diffIdx+1)+"</b> "+
+    "(letter <b>"+next[diffIdx].toUpperCase()+"</b>). "+
+    "You know "+(path.length-1-pos)+" more step(s) to go. Hints used: <b>"+hintsUsed+"</b>";
+  render();
+}
+
+/* ============ PARTICLES ============ */
+function spawnBurst(ok){
+  const cx = cv.width/2, cy = 200;
+  const col = ok ? "#4fd1c5" : "#fc8181";
+  for(let i=0;i<14;i++){
+    const a = Math.random()*Math.PI*2, sp = 1+Math.random()*3;
+    particles.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,col});
+  }
+}
+function spawnWin(){
+  for(let i=0;i<80;i++){
+    const a = Math.random()*Math.PI*2, sp = 2+Math.random()*5;
+    particles.push({x:cv.width/2,y:cv.height/2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,
+      col:["#4fd1c5","#f6ad55","#68d391","#fc8181"][i%4]});
+  }
+}
+
+/* ============ RENDER ============ */
+function render(){
+  const W=cv.width, H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  // bg
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,"#161b22"); g.addColorStop(1,"#0d1117");
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+  // title
+  ctx.textAlign="center";
+  ctx.fillStyle="#8b98a9";
+  ctx.font="12px ui-monospace,monospace";
+  ctx.fillText(daily ? "DAILY LADDER · "+new Date().toISOString().slice(0,10) : "WORD LADDER", W/2, 26);
+
+  // start & target
+  ctx.font="700 18px ui-monospace,monospace";
+  ctx.fillStyle="#e6edf3";
+  ctx.fillText(startWord.toUpperCase(), W/2-110, 62);
+  ctx.fillStyle="#4fd1c5";
+  ctx.fillText(targetWord.toUpperCase(), W/2+110, 62);
+  ctx.font="11px ui-monospace,monospace";
+  ctx.fillStyle="#8b98a9";
+  ctx.fillText("START", W/2-110, 80);
+  ctx.fillText("TARGET", W/2+110, 80);
+
+  // ladder steps
+  const steps = path.length;
+  const topY = 110, botY = H-40;
+  const stepH = (botY-topY)/Math.max(1,steps-1);
+  for(let i=0;i<steps;i++){
+    const y = topY + i*stepH;
+    const done = i < pos;
+    const cur = i === pos;
+    // connector
+    if(i>0){
+      ctx.strokeStyle = done ? "#4fd1c5" : "#2b3444";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(W/2, y-stepH); ctx.lineTo(W/2, y);
+      ctx.stroke();
+    }
+    // node
+    ctx.beginPath();
+    ctx.arc(W/2, y, cur?16:(done?12:9), 0, Math.PI*2);
+    ctx.fillStyle = done ? "#4fd1c5" : (cur ? "#f6ad55" : "#21262d");
+    ctx.fill();
+    ctx.strokeStyle = cur ? "#f6ad55" : (done ? "#4fd1c5" : "#3a4557");
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // label
+    ctx.font = (cur?"700 15px":"13px")+" ui-monospace,monospace";
+    ctx.fillStyle = done ? "#4fd1c5" : (cur ? "#f6ad55" : "#8b98a9");
+    ctx.fillText(path[i].toUpperCase(), W/2 + 70, y+4);
+    if(cur){
+      ctx.font="10px ui-monospace,monospace";
+      ctx.fillStyle="#8b98a9";
+      ctx.fillText("YOU ARE HERE →", W/2 + 150, y+4);
+    }
+  }
+
+  // progress bar
+  const prog = steps>1 ? pos/(steps-1) : 0;
+  ctx.fillStyle="#21262d";
+  ctx.fillRect(40, H-26, W-80, 8);
+  ctx.fillStyle="#4fd1c5";
+  ctx.fillRect(40, H-26, (W-80)*prog, 8);
+
+  // flash message
+  if(flashMsg && Date.now()-flashT < 1200){
+    ctx.font="700 14px ui-monospace,monospace";
+    ctx.fillStyle="#fc8181";
+    ctx.fillText(flashMsg.toUpperCase(), W/2, H-40);
+  }
+
+  // win overlay
+  if(won){
+    ctx.fillStyle="rgba(13,17,23,.72)";
+    ctx.fillRect(0,0,W,H);
+    ctx.textAlign="center";
+    ctx.font="700 30px ui-monospace,monospace";
+    ctx.fillStyle="#68d391";
+    ctx.fillText("SOLVED!", W/2, H/2-30);
+    ctx.font="14px ui-monospace,monospace";
+    ctx.fillStyle="#e6edf3";
+    ctx.fillText("Time: "+fmt(Date.now()-startTime)+"   Hints: "+hintsUsed, W/2, H/2+2);
+    ctx.fillStyle="#8b98a9";
+    ctx.font="12px ui-monospace,monospace";
+    ctx.fillText("Press NEW PUZZLE to play again", W/2, H/2+30);
+  }
+
+  // particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.08; p.life-=0.02;
+    if(p.life<=0){ particles.splice(i,1); continue; }
+    ctx.globalAlpha=Math.max(0,p.life);
+    ctx.fillStyle=p.col;
+    ctx.fillRect(p.x-2,p.y-2,4,4);
+    ctx.globalAlpha=1;
+  }
+}
+
+/* ============ CLOCK ============ */
+setInterval(()=>{
+  if(running && !won){
+    document.getElementById("time").textContent = fmt(Date.now()-startTime);
+  }
+  render(); // keep particles/flash animating
+}, 100);
+
+/* ============ KEYBOARD ============ */
+window.addEventListener("keydown", e=>{
+  if(e.key.length===1) tryLetter(e.key);
+  else if(e.key==="Enter") setup(false);
+  else if(e.key==="h"||e.key==="H") hint();
+});
+
+/* ============ BUTTONS ============ */
+document.getElementById("newBtn").onclick = ()=>setup(false);
+document.getElementById("dailyBtn").onclick = ()=>setup(true);
+document.getElementById("hintBtn").onclick = hint;
+document.getElementById("resetBtn").onclick = ()=>{
+  pos=0; hintsUsed=0; startTime=Date.now(); running=true; won=false;
+  document.getElementById("hintBox").innerHTML =
+    "Reset. Change <b>one letter</b> at a time — every step must be a real 4-letter word.";
+  render();
+};
+
+/* ============ INIT ============ */
+setup(false);
+</script>
+</body>
+</html>
